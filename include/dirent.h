@@ -1,3 +1,4 @@
+// Michel Rouzic's UTF-8 modification
 /*
  * Dirent interface for Microsoft Visual Studio
  * Version 1.21
@@ -277,7 +278,7 @@ struct dirent {
     int d_type;
 
     /* File name */
-    char d_name[PATH_MAX];
+    char d_name[PATH_MAX*4];
 };
 typedef struct dirent dirent;
 
@@ -625,11 +626,11 @@ opendir(
     /* Allocate memory for DIR structure */
     dirp = (DIR*) malloc (sizeof (struct DIR));
     if (dirp) {
-        wchar_t wname[PATH_MAX];
+        wchar_t wname[PATH_MAX*4];	// for some reason MultiByteToWideChar requires more space than it actually needs
         size_t n;
 
         /* Convert directory name to wide-character string */
-        error = dirent_mbstowcs_s (&n, wname, PATH_MAX, dirname, PATH_MAX);
+        error = dirent_mbstowcs_s (&n, wname, PATH_MAX*4, dirname, PATH_MAX*4);
         if (!error) {
 
             /* Open directory stream using wide-character name */
@@ -694,7 +695,7 @@ readdir(
 
         /* Attempt to convert file name to multi-byte string */
         error = dirent_wcstombs_s(
-            &n, dirp->ent.d_name, PATH_MAX, datap->cFileName, PATH_MAX);
+            &n, dirp->ent.d_name, PATH_MAX*4, datap->cFileName, PATH_MAX);
 
         /* 
          * If the file name cannot be represented by a multi-byte string,
@@ -708,7 +709,7 @@ readdir(
          */
         if (error  &&  datap->cAlternateFileName[0] != '\0') {
             error = dirent_wcstombs_s(
-                &n, dirp->ent.d_name, PATH_MAX, 
+                &n, dirp->ent.d_name, PATH_MAX*4, 
                 datap->cAlternateFileName, PATH_MAX);
         }
 
@@ -811,7 +812,13 @@ dirent_mbstowcs_s(
 #if defined(_MSC_VER)  &&  _MSC_VER >= 1400
 
     /* Microsoft Visual Studio 2005 or later */
-    error = mbstowcs_s (pReturnValue, wcstr, sizeInWords, mbstr, count);
+    //error = mbstowcs_s (pReturnValue, wcstr, sizeInWords, mbstr, count);
+    error = MultiByteToWideChar(CP_UTF8, 0, mbstr, count, wcstr, sizeInWords)==0;
+	if (error)
+	{
+		error = GetLastError();
+		error = 0;
+	}
 
 #else
 
@@ -864,7 +871,8 @@ dirent_wcstombs_s(
 #if defined(_MSC_VER)  &&  _MSC_VER >= 1400
 
     /* Microsoft Visual Studio 2005 or later */
-    error = wcstombs_s (pReturnValue, mbstr, sizeInBytes, wcstr, count);
+    //error = wcstombs_s (pReturnValue, mbstr, sizeInBytes, wcstr, count);
+    error = WideCharToMultiByte(CP_UTF8, 0, wcstr, count, mbstr, sizeInBytes, NULL, NULL)==0;
 
 #else
 
@@ -926,4 +934,3 @@ dirent_set_errno(
 }
 #endif
 #endif /*DIRENT_H*/
-
