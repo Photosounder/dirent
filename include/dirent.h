@@ -1,4 +1,4 @@
-// Michel Rouzic's UTF-8 modification
+// rouziclib version
 /*
  * Dirent interface for Microsoft Visual Studio
  * Version 1.21
@@ -327,7 +327,12 @@ _wopendir(
     int error;
 
     /* Must have directory name */
-    if (dirname == NULL  ||  dirname[0] == '\0') {
+    if (dirname == NULL) {
+        dirent_set_errno (ENOENT);
+        return NULL;
+    }
+
+    if (dirname[0] == '\0') {
         dirent_set_errno (ENOENT);
         return NULL;
     }
@@ -618,7 +623,12 @@ opendir(
     int error;
 
     /* Must have directory name */
-    if (dirname == NULL  ||  dirname[0] == '\0') {
+    if (dirname == NULL) {
+        dirent_set_errno (ENOENT);
+        return NULL;
+    }
+
+    if (dirname[0] == '\0') {
         dirent_set_errno (ENOENT);
         return NULL;
     }
@@ -814,11 +824,6 @@ dirent_mbstowcs_s(
     /* Microsoft Visual Studio 2005 or later */
     //error = mbstowcs_s (pReturnValue, wcstr, sizeInWords, mbstr, count);
     error = MultiByteToWideChar(CP_UTF8, 0, mbstr, count, wcstr, sizeInWords)==0;
-	if (error)
-	{
-		error = GetLastError();
-		error = 0;
-	}
 
 #else
 
@@ -929,6 +934,44 @@ dirent_set_errno(
 #endif
 }
 
+static char *realpath(const char *file_name, char *resolved_name)
+{
+	wchar_t wpath[PATH_MAX*4], wres[PATH_MAX*4];
+	int ret;
+
+	if (file_name == NULL)
+	{
+		dirent_set_errno (ENOENT);
+		return NULL;
+	}
+
+	if (file_name[0] == '\0')
+	{
+		dirent_set_errno (ENOENT);
+		return NULL;
+	}
+
+	if (resolved_name==NULL)
+		resolved_name = calloc (PATH_MAX*4, sizeof(char));
+
+	ret = dirent_mbstowcs_s (NULL, wpath, PATH_MAX*4, file_name, PATH_MAX*4);
+	if (ret)
+	{
+		dirent_set_errno (ENOENT);
+		return NULL;
+	}
+
+	ret = GetFullPathNameW (wpath, PATH_MAX*4, wres, NULL);
+	if (ret==0)
+	{
+		dirent_set_errno (ENOENT);
+		return NULL;
+	}
+
+	ret = dirent_wcstombs_s(NULL, resolved_name, PATH_MAX*4, wres, PATH_MAX);
+
+	return resolved_name;
+}
 
 #ifdef __cplusplus
 }
